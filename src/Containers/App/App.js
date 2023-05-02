@@ -1,32 +1,46 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Fragment, useRef } from "react";
 import "./App.css";
+import axios from '../../axios-firebase';
 
 // Composant
 import Task from "../../Components/Task/Task";
+import Spinner from '../../Components/Spinner/Spinner';
 
 function App() {
 
   // States
-  const [tasks, setTasks] = useState([
-    {
-      content : 'Faire la vaisselle',
-      done: false
-    },
-    {
-      content : 'Faire la cuisine',
-      done: true
-    }
-  ])
-
-  const [newTask, setNewTask] = useState(false);
-
+  const [tasks, setTasks] = useState([])
+  const [newTasks, setNewTasks] = useState([])
   const [input, setInput] = useState('');
+  const [chargement, setChargement] = useState(false);
+
+
+  // Ref
+  const inputRef = useRef('');
+
+  // Cycle de vie
+  
+
+  useEffect(() => {
+    fetchTasks();
+
+    inputRef.current.focus()
+
+    
+  }, []);
+
 
   // Methodes
    const removeClickedHandler = index => {
     const newTasks = [...tasks];
     newTasks.splice(index, 1);
     setTasks(newTasks);
+
+    axios.delete('tasks/' + tasks[index].id + '.json')
+    .catch(error => {
+      console.log(error)
+
+    })
 
    }
 
@@ -35,22 +49,94 @@ function App() {
     newTasks[index].done= !tasks[index].done;
     setTasks(newTasks);
 
+    axios.put('tasks/' + newTasks[index].id + '.json', newTasks[index])
+    .then(response => {
+      console.log(response);
+      fetchTasks();
+    })
+    .catch(error => {
+      console.log(error)
+
+    })
+
+    
+
    }
 
+    /**
+    *  Ajouter des taches
+    * 
+    */
    // empêcher l'envoie du formulaire
+   
 
    const submittedTaskHandler = event => {
     event.preventDefault();
     if (input!=''){
-      const newTask = {
+      const nextTask = {
         content: input,
         done: false
       }
-      setTasks([...tasks, newTask]);
+      setInput('');
+
+      axios.post('tasks.json', nextTask)
+      .then(response => {
+        console.log(response)
+        fetchTasks();
+
+    
+      })
+      .catch(error => {
+        console.log(error)
+  
+      });
+      
 
     }
+   }
 
-   
+   /**
+    * Récupérer les tâches
+    * 
+    */
+   const fetchTasks = () => {
+    setChargement(true);
+    axios.get('tasks.json')
+    .then(response => {
+     const newTasks = [];
+     const donedTasks =[];
+     for (let key in response.data){
+      // if (response.data[key].moyenne >= 10){
+
+      if (response.data[key].done===true){
+        donedTasks.unshift({
+          ...response.data[key],
+          id: key
+        });
+      } else {
+       
+       newTasks.push({
+         ...response.data[key],
+         id: key
+       });
+
+      }
+
+    }
+    // on fusionne les deux tableau
+    let resultTasks = newTasks.concat(donedTasks);
+     setTasks(resultTasks);
+     setChargement(false);
+
+     
+
+  }
+    )
+    .catch(error => {
+      console.log(error);
+      setChargement(false);
+    })
+
    }
 
    const changedFormHandler = event => {
@@ -59,7 +145,9 @@ function App() {
 
 
    
-  // Variables
+
+  // cartes
+
   let cartes = tasks.map ( (task, index) =>(
     <Task
     key={index}
@@ -67,6 +155,7 @@ function App() {
     content={task.content}
     delete={() => removeClickedHandler(index)}
     doneClicked={() => checkClickedHandler(index)}
+    
    >
       
 
@@ -89,10 +178,16 @@ function App() {
       <header>
         <span>TO-DO</span>
       </header>
+      {chargement ?
+
+      <Spinner></Spinner>
+
+      :
+      <>
 
       <div className="add">
         <form onSubmit={(e) => submittedTaskHandler(e)}>
-          <input value={input} onChange={(e) => changedFormHandler(e)} type="text"  placeholder="Que souhaitez-vous ajouter ?" />
+          <input ref={inputRef} value={input} onChange={(e) => changedFormHandler(e)} type="text"  placeholder="Que souhaitez-vous ajouter ?" />
           <button type="submit">Ajouter</button>
         </form>
       </div>
@@ -102,6 +197,8 @@ function App() {
       
 
       </div>
+      </>
+}
     </div>
   );
 }
